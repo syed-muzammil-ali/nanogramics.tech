@@ -1,0 +1,11 @@
+.env
+.env.*
+node_modules/
+.vscode/
+reset-postgres-password.cmd
+reset-postgres-password.ps1
+CLIENT-ASSETS.md
+DEVELOPMENT_TASKS.md
+START-PREVIEW.cmd
+VERIFICATION.md
+verification/

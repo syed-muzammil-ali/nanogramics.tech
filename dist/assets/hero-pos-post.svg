@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="680" viewBox="0 0 900 680" role="img" aria-labelledby="title desc">
+  <title id="title">Minimal POS system interface</title>
+  <desc id="desc">A clean point of sale interface with products, checkout, total sales, and inventory status.</desc>
+  <defs>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="18" stdDeviation="20" flood-color="#061327" flood-opacity=".12"/>
+    </filter>
+  </defs>
+  <rect width="900" height="680" fill="#eaf5f3"/>
+  <circle cx="792" cy="82" r="134" fill="#d2efeb"/>
+  <circle cx="94" cy="618" r="92" fill="#d9f2ef"/>
+
+  <g filter="url(#shadow)">
+    <rect x="58" y="52" width="784" height="576" rx="18" fill="#ffffff"/>
+  </g>
+
+  <rect x="58" y="52" width="98" height="576" rx="18" fill="#061327"/>
+  <rect x="138" y="52" width="18" height="576" fill="#061327"/>
+  <text x="86" y="103" fill="#ffffff" font-family="Arial, sans-serif" font-size="25" font-weight="700">N.</text>
+  <rect x="80" y="144" width="54" height="46" rx="10" fill="#0bc4b7"/>
+  <path d="M95 159h23v16H95zM100 154v5M113 154v5" fill="none" stroke="#061327" stroke-width="3" stroke-linecap="round"/>
+  <g fill="none" stroke="#7890a9" stroke-width="3" stroke-linecap="round">
+    <path d="M91 238h32M91 248h23"/>
+    <circle cx="107" cy="309" r="13"/>
+    <path d="M107 296v26M94 309h26M92 379h30M92 390h19"/>
+  </g>
+  <circle cx="107" cy="582" r="20" fill="#143052"/>
+  <text x="99" y="589" fill="#8cf3eb" font-family="Arial, sans-serif" font-size="18" font-weight="700">A</text>
+
+  <text x="190" y="101" fill="#061327" font-family="Arial, sans-serif" font-size="22" font-weight="700">New sale</text>
+  <text x="190" y="126" fill="#708087" font-family="Arial, sans-serif" font-size="12">Tuesday, 22 September</text>
+  <rect x="672" y="82" width="134" height="39" rx="9" fill="#eef7f6"/>
+  <circle cx="695" cy="101" r="6" fill="none" stroke="#087b73" stroke-width="2"/>
+  <path d="M700 106l5 5" stroke="#087b73" stroke-width="2" stroke-linecap="round"/>
+  <text x="716" y="106" fill="#54656c" font-family="Arial, sans-serif" font-size="11">Search items</text>
+  <line x1="190" y1="150" x2="806" y2="150" stroke="#e1eae9"/>
+
+  <text x="190" y="187" fill="#718087" font-family="Arial, sans-serif" font-size="11" font-weight="700" letter-spacing="1.5">PRODUCTS</text>
+  <g font-family="Arial, sans-serif">
+    <rect x="190" y="207" width="139" height="121" rx="12" fill="#f2f7f7"/>
+    <rect x="346" y="207" width="139" height="121" rx="12" fill="#f2f7f7"/>
+    <rect x="502" y="207" width="139" height="121" rx="12" fill="#f2f7f7"/>
+    <rect x="658" y="207" width="148" height="121" rx="12" fill="#e1f6f3" stroke="#0bc4b7"/>
+    <circle cx="259" cy="250" r="22" fill="#dceae8"/>
+    <circle cx="415" cy="250" r="22" fill="#dceae8"/>
+    <circle cx="571" cy="250" r="22" fill="#dceae8"/>
+    <circle cx="732" cy="250" r="22" fill="#0bc4b7" fill-opacity=".2"/>
+    <path d="M249 252h20M259 242v20M405 252h20M415 242v20M561 252h20M571 242v20M722 252h20M732 242v20" stroke="#087b73" stroke-width="2" stroke-linecap="round"/>
+    <text x="207" y="298" fill="#061327" font-size="12" font-weight="700">Classic tee</text>
+    <text x="363" y="298" fill="#061327" font-size="12" font-weight="700">Canvas bag</text>
+    <text x="519" y="298" fill="#061327" font-size="12" font-weight="700">Daily bottle</text>
+    <text x="675" y="298" fill="#061327" font-size="12" font-weight="700">Studio cap</text>
+    <text x="207" y="316" fill="#087b73" font-size="11">Rs. 2,400</text>
+    <text x="363" y="316" fill="#087b73" font-size="11">Rs. 1,850</text>
+    <text x="519" y="316" fill="#087b73" font-size="11">Rs. 1,200</text>
+    <text x="675" y="316" fill="#087b73" font-size="11">Rs. 1,650</text>
+  </g>
+
+  <rect x="190" y="354" width="402" height="230" rx="13" fill="#fbfdfd" stroke="#e1eae9"/>
+  <text x="214" y="386" fill="#061327" font-family="Arial, sans-serif" font-size="14" font-weight="700">Current order</text>
+  <text x="530" y="386" fill="#718087" font-family="Arial, sans-serif" font-size="10">Table 04</text>
+  <line x1="214" y1="405" x2="568" y2="405" stroke="#e5eceb"/>
+  <g font-family="Arial, sans-serif" font-size="11">
+    <rect x="214" y="424" width="35" height="35" rx="8" fill="#e5f4f2"/>
+    <text x="265" y="439" fill="#061327" font-weight="700">Studio cap</text>
+    <text x="265" y="455" fill="#718087">1 x Rs. 1,650</text>
+    <text x="508" y="446" fill="#061327" font-weight="700">Rs. 1,650</text>
+    <rect x="214" y="476" width="35" height="35" rx="8" fill="#eef3f3"/>
+    <text x="265" y="491" fill="#061327" font-weight="700">Classic tee</text>
+    <text x="265" y="507" fill="#718087">2 x Rs. 2,400</text>
+    <text x="508" y="498" fill="#061327" font-weight="700">Rs. 4,800</text>
+  </g>
+  <line x1="214" y1="531" x2="568" y2="531" stroke="#e5eceb"/>
+  <text x="214" y="559" fill="#718087" font-family="Arial, sans-serif" font-size="11">Subtotal</text>
+  <text x="508" y="559" fill="#061327" font-family="Arial, sans-serif" font-size="12" font-weight="700">Rs. 6,450</text>
+
+  <rect x="610" y="354" width="196" height="230" rx="13" fill="#061327"/>
+  <text x="633" y="388" fill="#91a4b9" font-family="Arial, sans-serif" font-size="10" letter-spacing="1.4">TODAY'S SALES</text>
+  <text x="633" y="432" fill="#ffffff" font-family="Arial, sans-serif" font-size="29" font-weight="700">Rs. 84,250</text>
+  <text x="633" y="456" fill="#7be9e1" font-family="Arial, sans-serif" font-size="11">+12.4% from yesterday</text>
+  <line x1="633" y1="483" x2="783" y2="483" stroke="#274260"/>
+  <text x="633" y="510" fill="#91a4b9" font-family="Arial, sans-serif" font-size="10">Inventory status</text>
+  <rect x="633" y="528" width="150" height="7" rx="4" fill="#1c3858"/>
+  <rect x="633" y="528" width="116" height="7" rx="4" fill="#0bc4b7"/>
+  <text x="633" y="559" fill="#ffffff" font-family="Arial, sans-serif" font-size="11">1,284 items ready</text>
+</svg>
