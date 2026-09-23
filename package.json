@@ -7,7 +7,7 @@
     "dev": "node server.mjs",
     "start": "node server.mjs",
     "db:setup": "node scripts/setup-db.mjs",
-    "check": "node --check dist/app.js && node --check server.mjs && node --check scripts/setup-db.mjs && node --check scripts/load-env.mjs && node check.mjs"
+    "check": "node --check dist/app.js && node --check server.mjs && node --check scripts/setup-db.mjs && node --check scripts/load-env.mjs && node --check api/_db.js && node --check api/health.js && node --check api/inquiries.js && node check.mjs"
   },
   "dependencies": {
     "pg": "^8.13.1"
