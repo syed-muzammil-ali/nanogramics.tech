@@ -1,0 +1,9 @@
+.git
+.vercel
+.vscode
+.env
+.env.*
+node_modules
+verification
+*.log
+reset-postgres-password.*

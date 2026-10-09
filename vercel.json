@@ -1,5 +1,12 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
-  "outputDirectory": "dist"
+  "outputDirectory": "dist",
+  "rewrites": [
+    {"source": "/admin", "destination": "/admin/index.html"},
+    {"source": "/admin/", "destination": "/admin/index.html"},
+    {"source": "/pos", "destination": "/pos/index.html"},
+    {"source": "/pos/", "destination": "/pos/index.html"},
+    {"source": "/pos/:path*", "destination": "/pos/:path*"}
+  ]
 }

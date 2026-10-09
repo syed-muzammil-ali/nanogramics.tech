@@ -14,6 +14,7 @@ if (!databaseUrl) {
 
 const {Pool} = await import('pg');
 const schema = await readFile(path.join(root, 'db', 'schema.sql'), 'utf8');
+const {POS_SCHEMA} = await import('../api/pos.js');
 const target = new URL(databaseUrl);
 const databaseName = decodeURIComponent(target.pathname.slice(1));
 if (!databaseName) {
@@ -48,8 +49,8 @@ const pool = new Pool({
 });
 
 try {
-  await pool.query(schema);
-  console.log('PostgreSQL schema is ready: project_inquiries');
+  await pool.query(`${schema}\n${POS_SCHEMA}`);
+  console.log('PostgreSQL schema is ready: website inquiries, POS, inventory, online orders, shop transfers, users, audit and riders');
 } finally {
   await pool.end();
 }

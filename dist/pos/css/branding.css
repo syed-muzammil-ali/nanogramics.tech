@@ -1,0 +1,27 @@
+/* The alpha mask uses the original full canvas. Theme changes only its ink color. */
+:root { --brand-ink: #000; }
+:root[data-theme="dark"] { --brand-ink: #fff; }
+.login-logo .app-brand, .sidebar-logo .app-brand {
+ display: flex; flex-direction: column; align-items: flex-start; gap: 0;
+ margin: 0; width: 100%; background: none; color: var(--text);
+ -webkit-text-fill-color: currentColor;
+}
+.app-brand::before { content: none !important; }
+.brand-logo {
+ display: block; width: 100%; max-width: 320px; aspect-ratio: 1600 / 684;
+ background-color: var(--brand-ink);
+ -webkit-mask: url('../assets/branding/nanogramics-mask.png') center / contain no-repeat;
+ mask: url('../assets/branding/nanogramics-mask.png') center / contain no-repeat;
+}
+.brand-logo img { display: block; width: 100%; height: 100%; object-fit: contain; opacity: 0; }
+.brand-name { font-size: 12px; font-weight: 600; letter-spacing: .2px; line-height: 1.4; }
+.sidebar-logo .brand-logo { max-width: 200px; }
+.login-logo { margin-bottom: 24px; }
+.sidebar-logo p { margin-top: 4px; }
+@media (max-width: 900px) {
+ .sidebar-logo { padding-left: 4px; padding-right: 4px; }
+ .sidebar-logo .brand-name { width: 100%; font-size: 8px; text-align: center; overflow-wrap: anywhere; }
+}
+
+/* Allow the full branded login card to scroll at high display scaling. */
+.login-container { margin-block: auto; flex-shrink: 0; }

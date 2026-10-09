@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Nanogramics · Super Admin</title>
+  <link rel="icon" type="image/png" href="/pos/assets/branding/nanogramics-icon.png">
+  <link rel="stylesheet" href="/admin/admin.css?v=1">
+</head>
+<body>
+  <section id="login-view" class="login-view">
+    <form id="login-form" class="login-card">
+      <img src="/pos/assets/branding/nanogramics-mask.png" alt="Nanogramics">
+      <p class="eyebrow">PLATFORM CONTROL</p>
+      <h1>Super Admin<span>.</span></h1>
+      <p class="muted">Sign in to create and control company workspaces.</p>
+      <label>Username<input name="username" autocomplete="username" required></label>
+      <label>Password<input name="password" type="password" autocomplete="current-password" required></label>
+      <button class="primary" type="submit">Sign in →</button>
+      <p id="login-error" class="error" role="alert"></p>
+      <a href="/">← Back to website</a>
+    </form>
+  </section>
+
+  <div id="admin-view" class="shell" hidden>
+    <aside>
+      <img class="brand" src="/pos/assets/branding/nanogramics-mask.png" alt="Nanogramics">
+      <p class="eyebrow">SUPER ADMIN</p>
+      <nav><a class="active" href="#overview">Overview</a><a href="#companies">Companies</a><a href="/pos" target="_blank">Open POS ↗</a></nav>
+      <div class="aside-note"><i></i> Production connected<small>Company workspaces and access controls are live.</small></div>
+      <button id="logout" class="ghost">Sign out</button>
+    </aside>
+    <main>
+      <header id="overview">
+        <div><p class="eyebrow">WORKSPACE MANAGEMENT</p><h1>Platform overview<span>.</span></h1><p class="muted">Create VIP companies, control their modules and manage access.</p></div>
+        <button id="new-company" class="primary">＋ New company</button>
+      </header>
+      <div class="toolbar"><span><i></i> <b id="updated">Live platform data</b></span><button id="refresh">↻ Refresh</button></div>
+      <p id="notice" class="notice" role="status"></p>
+      <section id="metrics" class="metrics"></section>
+      <section class="panel" id="companies">
+        <div class="panel-head"><div><p class="eyebrow">TENANTS</p><h2>Companies <span id="company-count" class="pill">0</span></h2></div><input id="search" type="search" placeholder="Search companies…"></div>
+        <div class="table-wrap"><table><thead><tr><th>Company</th><th>Plan</th><th>Modules</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead><tbody id="company-rows"></tbody></table></div>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="company-dialog">
+    <form id="company-form">
+      <div class="dialog-head"><div><p class="eyebrow">COMPANY WORKSPACE</p><h2 id="dialog-title">Create company</h2></div><button type="button" class="icon-button" id="close-dialog">✕</button></div>
+      <input type="hidden" name="id">
+      <div class="form-grid">
+        <label>Company name<input name="name" maxlength="160" required placeholder="e.g. Lajpal Brand Hub"></label>
+        <label>Plan<select name="plan"><option>VIP</option><option>Standard</option><option>Trial</option></select></label>
+        <label class="create-only">Company admin username<input name="username" minlength="3" maxlength="80" autocomplete="off"></label>
+        <label class="create-only">Company admin password<input name="password" type="password" minlength="8" maxlength="160" autocomplete="new-password"></label>
+        <label>Phone<input name="phone" maxlength="80"></label>
+        <label class="wide">Address<textarea name="address" maxlength="500" rows="2"></textarea></label>
+        <label class="wide">Logo <span class="muted">(optional, PNG/JPG/WebP up to 250 KB)</span><input name="logoFile" type="file" accept="image/png,image/jpeg,image/webp"></label>
+      </div>
+      <div class="module-head"><div><h3>Enabled POS modules</h3><p class="muted">Choose what this company can access.</p></div><button type="button" id="select-all">Select all</button></div>
+      <div id="modules" class="modules"></div>
+      <p id="form-error" class="error" role="alert"></p>
+      <footer><button type="button" id="cancel">Cancel</button><button type="submit" class="primary" id="save-company">Create company →</button></footer>
+    </form>
+  </dialog>
+  <script src="/admin/admin.js?v=1"></script>
+</body>
+</html>

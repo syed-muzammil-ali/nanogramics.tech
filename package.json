@@ -7,9 +7,10 @@
     "dev": "node server.mjs",
     "start": "node server.mjs",
     "db:setup": "node scripts/setup-db.mjs",
-    "check": "node --check dist/app.js && node --check server.mjs && node --check scripts/setup-db.mjs && node --check scripts/load-env.mjs && node --check api/_db.js && node --check api/health.js && node --check api/inquiries.js && node check.mjs"
+    "check": "node --check dist/app.js && node --check server.mjs && node --check scripts/setup-db.mjs && node --check scripts/load-env.mjs && node --check api/_db.js && node --check api/health.js && node --check api/inquiries.js && node --check api/pos.js && node --check dist/admin/admin.js && node --check dist/pos/js/api.js && node --check dist/pos/js/app.js && node --check dist/pos/js/auth.js && node --check dist/pos/js/barcode.js && node --check dist/pos/js/inventory.js && node --check dist/pos/js/online.js && node --check dist/pos/js/riders.js && node --check dist/pos/js/sales.js && node --check dist/pos/js/ui.js && node --check dist/pos/sw.js && node --test tests/inventory-core.test.mjs tests/rider-core.test.mjs dist/pos/js/barcode.test.cjs dist/pos/js/inventory.test.cjs dist/pos/js/reports-invoice-pdf.test.cjs dist/pos/js/shop-history.test.cjs && node check.mjs"
   },
   "dependencies": {
+    "bcryptjs": "^2.4.3",
     "pg": "^8.13.1"
   }
 }

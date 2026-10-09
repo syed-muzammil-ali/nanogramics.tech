@@ -3,6 +3,7 @@ import {readFile} from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {loadEnvFile} from './scripts/load-env.mjs';
+import {POST as posPost} from './api/pos.js';
 
 const appRoot = path.dirname(fileURLToPath(import.meta.url));
 await loadEnvFile(path.join(appRoot, '.env.local'));
@@ -17,6 +18,7 @@ const mime = {
   '.jpg': 'image/jpeg',
   '.jpeg': 'image/jpeg',
   '.webp': 'image/webp',
+  '.webmanifest': 'application/manifest+json; charset=utf-8',
   '.woff2': 'font/woff2'
 };
 const services = new Set([
@@ -62,6 +64,20 @@ async function parseJson(req) {
   } catch {
     throw Object.assign(new Error('Request body must be valid JSON.'), {status: 400});
   }
+}
+
+async function readBody(req, max = 1_000_000) {
+  let body = '';
+  for await (const chunk of req) {
+    body += chunk;
+    if (body.length > max) throw Object.assign(new Error('Request body is too large.'), {status: 413});
+  }
+  return body;
+}
+
+async function sendWebResponse(res, response) {
+  res.writeHead(response.status, Object.fromEntries(response.headers.entries()));
+  res.end(Buffer.from(await response.arrayBuffer()));
 }
 
 function cleanText(value, max) {
@@ -118,7 +134,12 @@ async function createInquiry(req, res) {
 }
 
 async function serveStatic(pathname, res) {
-  const target = path.resolve(root, '.' + (pathname === '/' ? '/index.html' : pathname));
+  const staticPath = pathname === '/'
+    ? '/index.html'
+    : (pathname === '/pos' || pathname === '/pos/'
+      ? '/pos/index.html'
+      : (pathname === '/admin' || pathname === '/admin/' ? '/admin/index.html' : pathname));
+  const target = path.resolve(root, '.' + staticPath);
   if (!target.startsWith(root + path.sep)) {
     res.writeHead(403);
     res.end('Forbidden');
@@ -145,6 +166,16 @@ const server = http.createServer(async (req, res) => {
     }
     if (pathname === '/api/inquiries' && req.method === 'POST') {
       await createInquiry(req, res);
+      return;
+    }
+    if (pathname === '/api/pos' && req.method === 'POST') {
+      const body = await readBody(req);
+      const request = new Request('http://localhost/api/pos', {
+        method: 'POST',
+        headers: {'Content-Type': req.headers['content-type'] || 'application/json'},
+        body
+      });
+      await sendWebResponse(res, await posPost(request));
       return;
     }
     if (pathname.startsWith('/api/')) {

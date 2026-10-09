@@ -1,8 +1,16 @@
-# Nanogramics — Website Development
+# Nanogramics — Website + Hosted POS
 
 Run `npm install` once, then run `npm start` from this folder (or double-click `START-PREVIEW.cmd`) and visit http://127.0.0.1:4173. Keep the preview terminal open. Node.js is required. If a preview is already running, reuse it rather than starting another copy.
 
-Website files are in `dist/`. The local Node server serves the site and exposes `/api/inquiries` for contact form submissions.
+Website files are in `dist/`. The local Node server serves the agency site at `/`, the browser/PWA POS at `/pos/`, and the PostgreSQL APIs at `/api/*`. The POS no longer needs Electron.
+
+## POS inventory guarantees
+
+- New products receive a server-generated SKU such as `NG-00100001` and a printable Code 39 barcode label.
+- The POS catalog cards remain on the dashboard. Products can also be added by scanning a barcode or searching name, price, brand, category, stock quantity, or SKU.
+- Counter sales and online orders deduct stock inside PostgreSQL transactions. Insufficient stock rejects the whole transaction instead of silently overselling.
+- Online-order edits deduct or restore only the quantity difference; returned/deleted online orders restore stock.
+- The installable PWA caches the app and catalog. Counter sales created during a connection outage are deducted locally and queued with an idempotent invoice ID for automatic server sync.
 
 ## PostgreSQL setup
 
@@ -21,7 +29,11 @@ Run `npm run check` for JavaScript syntax, local assets and anchor links, page h
 
 Google Fonts serves Outfit. A sans-serif fallback works if font loading is blocked.
 
-## Deploy on Railway
+## Deploy on AWS
+
+Use the included production `Dockerfile` with AWS App Runner and Amazon RDS for PostgreSQL. Full networking, secrets, health-check, and custom-domain instructions are in [AWS-DEPLOYMENT.md](AWS-DEPLOYMENT.md).
+
+## Alternative: Deploy on Railway
 
 1. Push this project to a GitHub repository.
 2. In Railway, create a new project and choose **Deploy from GitHub repo**.

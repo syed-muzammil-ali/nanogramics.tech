@@ -1,6 +1,7 @@
 .env
 .env.*
 node_modules/
+.vercel/
 .vscode/
 reset-postgres-password.cmd
 reset-postgres-password.ps1
