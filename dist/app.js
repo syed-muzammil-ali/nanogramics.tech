@@ -40,6 +40,21 @@ const serviceSelect=document.getElementById('service-select');
 if(serviceSelect)document.querySelectorAll('[data-service]').forEach(link=>link.addEventListener('click',()=>{serviceSelect.value=link.dataset.service;serviceSelect.dispatchEvent(new Event('change',{bubbles:true}));}));
 const year=document.getElementById('year');
 if(year)year.textContent=new Date().getFullYear();
+// Browser-based email compose avoids relying on a locally configured mail app.
+document.querySelectorAll('a[href^="mailto:"]').forEach(link=>link.addEventListener('click',event=>{
+  event.preventDefault();
+  const mailto=link.getAttribute('href');
+  const [recipient,query='']=mailto.slice(7).split('?');
+  const mailParams=new URLSearchParams(query);
+  const gmail=new URL('https://mail.google.com/mail/');
+  gmail.searchParams.set('view','cm');
+  gmail.searchParams.set('fs','1');
+  gmail.searchParams.set('to',decodeURIComponent(recipient));
+  if(mailParams.get('subject'))gmail.searchParams.set('su',mailParams.get('subject'));
+  if(mailParams.get('body'))gmail.searchParams.set('body',mailParams.get('body'));
+  const compose=window.open(gmail.toString(),'_blank','noopener,noreferrer');
+  if(!compose)window.location.href=mailto;
+}));
 const revealSelectors='.section-heading,.hero-copy,.hero-visual,.expertise-strip,.service,.work-link,.studio-statement>*,.process-grid article,.contact-copy,.contact form,.projects-toolbar,.project-filters,.project-card,.concept-divider,.clients-cta>*,.services-close>*';
 document.querySelectorAll(revealSelectors).forEach(item=>{
   if(!item.classList.contains('reveal'))item.classList.add('reveal');
