@@ -84,19 +84,19 @@ function setupNavigation() {
   const allowedPages = getUserPermissions();
 
   const allTabs = [
-    { id: 'sales',     icon: '💰', label: 'POS Dashboard'     },
-    { id: 'online',    icon: '🌐', label: 'Online Orders' },
-    { id: 'inventory', icon: '📦', label: 'Inventory' },
+    { id: 'sales',     icon: '💰', label: 'Point of sale'     },
+    { id: 'online', icon: '🌐', label: 'Online Orders' },
+    { id: 'inventory', icon: '📦', label: 'Inventory'     },
     { id: 'shop', icon: '🏪', label: 'Shop stock' },
-    { id: 'wholesale', icon: '🏷️', label: 'Wholesale' },
-    { id: 'returns',   icon: '🔄', label: 'Returns' },
-    { id: 'exchange',  icon: '🔁', label: 'Exchange' },
-    { id: 'reports',   icon: '📊', label: 'Reports' },
-    { id: 'riders', icon: '', label: 'Riders' },
-    { id: 'riders-payments', icon: '', label: 'Payments', riderChild: true },
-    { id: 'riders-reports', icon: '', label: 'Reports', riderChild: true },
-    { id: 'audit',     icon: '📋', label: 'Audit Log' },
-    { id: 'settings',  icon: '⚙️', label: 'Settings' },
+    { id: 'wholesale', icon: '🏷️', label: 'Wholesale'     },
+    { id: 'returns',   icon: '🔄', label: 'Returns'       },
+    { id: 'riders', icon: '', label: 'Rider pickups' },
+    { id: 'riders-payments', icon: '', label: 'Ledger & Payments', riderChild: true },
+    { id: 'riders-reports', icon: '', label: 'Rider reports', riderChild: true },
+    { id: 'exchange',  icon: '🔁', label: 'Exchange'      },
+    { id: 'reports',   icon: '📊', label: 'Reports'       },
+    { id: 'audit',     icon: '📋', label: 'Audit Log'     },
+    { id: 'settings',  icon: '⚙️', label: 'Settings'      },
   ];
 
   // Filter to only allowed pages
@@ -115,16 +115,38 @@ function setupNavigation() {
   const riderChildren = riderTabs.filter(tab => tab.id !== 'riders');
   const riderGroup = riderMain ? `
     <div class="nav-group rider-nav-group" data-nav-group="riders">
-      ${navButton(riderMain, 'nav-group-main')}
-      ${riderChildren.length ? `<div class="nav-submenu">${riderChildren.map(tab => navButton(tab, 'nav-subitem')).join('')}</div>` : ''}
-    </div>` : '';
-  const riderPosition = regularTabs.findIndex(tab => tab.id === 'audit');
-  const beforeRiders = riderPosition < 0 ? regularTabs : regularTabs.slice(0, riderPosition);
-  const afterRiders = riderPosition < 0 ? [] : regularTabs.slice(riderPosition);
-  nav.innerHTML = beforeRiders.map(tab => navButton(tab)).join('') + riderGroup + afterRiders.map(tab => navButton(tab)).join('');
+      <div class="nav-group-header">
+        ${navButton(riderMain, 'nav-group-main')}
+        ${riderChildren.length ? '<button type="button" class="nav-group-toggle" aria-label="Toggle rider menu" aria-expanded="false"><span aria-hidden="true">⌄</span></button>' : ''}
+      </div>
+      ${riderChildren.length ? `<div class="nav-submenu" hidden>${riderChildren.map(tab => navButton(tab, 'nav-subitem')).join('')}</div>` : ''}
+    </div>` : riderChildren.map(tab => navButton(tab)).join('');
+  const groups = [
+    ['Sales & orders', ['sales','online','wholesale']],
+    ['Stock', ['inventory','shop']],
+    ['After sales', ['returns','exchange']],
+    ['Delivery', []],
+    ['Management', ['reports','audit','settings']]
+  ];
+  nav.innerHTML = groups.map(([label, ids]) => {
+    const content = label === 'Delivery' ? riderGroup : ids.map(id => regularTabs.find(tab => tab.id === id)).filter(Boolean).map(tab => navButton(tab)).join('');
+    return content ? '<div class="nav-section-label">' + label + '</div>' + content : '';
+  }).join('');
 
   nav.querySelectorAll('.nav-button').forEach(btn => {
-    btn.addEventListener('click', () => switchTabWithPermission(btn.dataset.tab));
+    btn.addEventListener('click', () => {
+      switchTabWithPermission(btn.dataset.tab);
+    });
+  });
+  nav.querySelectorAll('.nav-group-toggle').forEach(toggle => {
+    toggle.addEventListener('click', event => {
+      event.stopPropagation();
+      const group = toggle.closest('.nav-group');
+      const expanded = !group.classList.contains('expanded');
+      group.classList.toggle('expanded', expanded);
+      group.querySelector('.nav-submenu')?.toggleAttribute('hidden', !expanded);
+      toggle.setAttribute('aria-expanded', String(expanded));
+    });
   });
 
   // Set active on first visible tab
@@ -168,6 +190,7 @@ function switchTabWithPermission(tabId) {
   });
   document.querySelectorAll('.nav-group').forEach(group => {
     group.classList.toggle('active', group.dataset.navGroup === 'riders' && riderActive);
+    if (riderActive) { group.classList.add('expanded'); group.querySelector('.nav-submenu')?.removeAttribute('hidden'); group.querySelector('.nav-group-toggle')?.setAttribute('aria-expanded','true'); }
   });
 
   // Update page title

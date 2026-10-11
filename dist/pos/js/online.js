@@ -47,7 +47,7 @@ class OnlineOrdersManager {
     this.selectedProducts = {};
     this.productSearch  = '';
     this.currentDate    = getTodayDate();
-    this.activeFilter   = 'date';
+    this.activeFilter   = 'all';
     this.activeCity     = '';
     this.searchTerm     = '';
     this.submittedOrderIds = new Set();
@@ -228,6 +228,7 @@ class OnlineOrdersManager {
         break;
     }
 
+    if (this.activeCity) result = result.filter(o => (o.city || '').toLowerCase() === this.activeCity.toLowerCase());
     if (this.searchTerm.trim()) {
       const q = this.searchTerm.trim().toLowerCase();
       result = result.filter(o => {
@@ -300,6 +301,7 @@ class OnlineOrdersManager {
         delivery,
         discount,
         total,
+        paymentProof: orderData.paymentProof,
         paymentStatus: orderData.paymentStatus     || 'cod',
         orderStatus:   'pending',
         notes:         orderData.notes             || '',
@@ -610,24 +612,9 @@ class OnlineOrdersManager {
   updateStats() {
     const statsEl = document.getElementById('online-stats');
     if (!statsEl) return;
-    const totalRev  = this.filteredOrders.reduce((s, o) => s + (o.total || 0), 0);
-    const paidCount = this.filteredOrders.filter(o => (o.payment_status || o.paymentStatus) === 'paid').length;
-    const codCount  = this.filteredOrders.length - paidCount;
-    const pendCount = this.filteredOrders.filter(o => (o.order_status || 'pending') === 'pending').length;
-    const shipCount = this.filteredOrders.filter(o => o.order_status === 'shipping').length;
-    const delCount    = this.filteredOrders.filter(o => o.order_status === 'delivered').length;
-    const retCount    = this.orders.filter(o => o.order_status === 'return').length;
+    statsEl.className = 'online-order-count';
+    statsEl.textContent = `${this.filteredOrders.length} created orders · ${this.orders.length} total`;
 
-    statsEl.innerHTML = `
-      <div class="stat-card"><div class="stat-label">Revenue</div><div class="stat-value gold">Rs ${formatCurrency(totalRev)}</div></div>
-      <div class="stat-card"><div class="stat-label">Orders</div><div class="stat-value">${this.filteredOrders.length}</div></div>
-      <div class="stat-card"><div class="stat-label">Paid</div><div class="stat-value green">${paidCount}</div></div>
-      <div class="stat-card"><div class="stat-label">COD</div><div class="stat-value" style="color:var(--yellow);">${codCount}</div></div>
-      <div class="stat-card"><div class="stat-label">🕐 Pending</div><div class="stat-value" style="color:#f59e0b;">${pendCount}</div></div>
-      <div class="stat-card"><div class="stat-label">🚚 Shipping</div><div class="stat-value" style="color:#3b82f6;">${shipCount}</div></div>
-      <div class="stat-card"><div class="stat-label">✅ Delivered</div><div class="stat-value" style="color:#22c55e;">${delCount}</div></div>
-      <div class="stat-card" style="border-color:#7f1d1d;"><div class="stat-label">↩️ Returned</div><div class="stat-value" style="color:#ef4444;">${retCount}</div></div>
-    `;
   }
 
   // ── DATE DISPLAY ──────────────────────────────────────────────
@@ -653,6 +640,33 @@ class OnlineOrdersManager {
     } else {
       payEl.disabled = false;
     }
+    this.syncPaymentProof();
+  }
+
+  syncPaymentProof() {
+    const paid = document.getElementById('online-payment-status')?.value === 'paid';
+    const group = document.getElementById('online-proof-group');
+    if (group) group.hidden = !paid;
+    const input = document.getElementById('online-payment-proof');
+    if (input) input.required = paid && !this.savedPaymentProof;
+    const status = document.getElementById('online-proof-status');
+    if (status) status.textContent = this.savedPaymentProof ? 'Saved: ' + this.savedPaymentProof.name + ' — choose a file to replace.' : 'PNG, JPG or WebP, up to 2 MB.';
+  }
+
+  async readPaymentProof(status) {
+    if (status !== 'paid') return null;
+    const file = document.getElementById('online-payment-proof')?.files[0];
+    if (!file) {
+      if (this.savedPaymentProof) return this.savedPaymentProof;
+      throw new Error('Upload a payment slip for a paid order');
+    }
+    if (!['image/png','image/jpeg','image/webp'].includes(file.type) || !file.size || file.size > 2 * 1024 * 1024) throw new Error('Choose a PNG, JPG or WebP image up to 2 MB');
+    return new Promise((resolve,reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve({name:file.name,mime:file.type,base64:String(reader.result).split(',')[1]});
+      reader.onerror = () => reject(new Error('Could not read payment slip'));
+      reader.readAsDataURL(file);
+    });
   }
 
   // ── OPEN FORM ─────────────────────────────────────────────────
@@ -675,6 +689,8 @@ class OnlineOrdersManager {
       const discountEl = document.getElementById('online-discount');
       if (discountEl) discountEl.value = '0';
     }
+    this.savedPaymentProof = null;
+    this.syncPaymentProof();
     this.resetProductSelection();
     showModal('modal-online-order');
   }
@@ -686,6 +702,8 @@ class OnlineOrdersManager {
 
     this.editingOrderId = orderId;
     this.editingOrderStatus = order.order_status || 'pending';
+    this.savedPaymentProof = order.payment_proof_json ? JSON.parse(order.payment_proof_json) : null;
+    document.getElementById('online-payment-proof').value = '';
 
     // Pre-fill form with existing data
     const form = document.getElementById('online-order-form');
@@ -712,6 +730,8 @@ class OnlineOrdersManager {
       if (totalEl) totalEl.value = order.total || 0;
     }
 
+    this.updatePaymentStatusOptions(order.city);
+    this.syncPaymentProof();
     // Pre-select products
     this.selectedProducts = {};
     const items = order.items || [];
@@ -760,6 +780,7 @@ class OnlineOrdersManager {
         delivery,
         discount,
         total,
+        paymentProof: orderData.paymentProof,
         paymentStatus: orderData.paymentStatus || 'cod',
         orderStatus:   orderData.orderStatus || 'pending',
         notes:         orderData.notes || '',
@@ -803,6 +824,7 @@ class OnlineOrdersManager {
       const weight    = parseFloat(document.getElementById('online-weight').value)   || 0;
       const notes     = document.getElementById('online-notes').value.trim();
       const payStatus = document.getElementById('online-payment-status').value || 'cod';
+      const paymentProof = await this.readPaymentProof(payStatus);
       const items     = this.buildSelectedItems();
 
       if (!name)  throw new Error('Customer name is required');
@@ -823,6 +845,7 @@ class OnlineOrdersManager {
           delivery,
           discount,
           total:         finalTotal,
+          paymentProof,
           paymentStatus: payStatus,
           orderStatus:   this.editingOrderStatus || 'pending',
           notes,
@@ -844,6 +867,7 @@ class OnlineOrdersManager {
           delivery,
           discount,
           total:         finalTotal,
+          paymentProof,
           paymentStatus: payStatus,
           notes,
           weight,
@@ -947,6 +971,7 @@ class OnlineOrdersManager {
 
   // ── EVENT LISTENERS ───────────────────────────────────────────
   setupEventListeners() {
+    document.getElementById('online-payment-status')?.addEventListener('change', () => this.syncPaymentProof());
     if (this.listenersBound) return;
     this.listenersBound = true;
     const newBtn = document.getElementById('btn-new-online-order');
@@ -1010,9 +1035,9 @@ class OnlineOrdersManager {
     if (cityFilter) {
       cityFilter.addEventListener('change', e => {
         this.activeCity   = e.target.value;
-        this.activeFilter = e.target.value ? 'city' : 'all';
+        this.activeFilter = 'all';
         document.querySelectorAll('#tab-online .filter-tab').forEach(b => b.classList.remove('active'));
-        if (!e.target.value) {
+        {
           document.querySelector('[data-filter="all"]')?.classList.add('active');
         }
         this.applyFilter();

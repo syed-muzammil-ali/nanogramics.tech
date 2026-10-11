@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Nanogramics POS</title>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=3">
+  <link rel="stylesheet" href="css/style.css?v=4">
   <style>
     /* ── TOAST ── */
     #toast-container {
@@ -179,13 +179,13 @@
     }
     .perm-checkbox:disabled { opacity: 0.5; cursor: not-allowed; }
   </style>
-  <link rel="stylesheet" href="css/professional.css?v=3">
-  <link rel="stylesheet" href="css/branding.css?v=3">
+  <link rel="stylesheet" href="css/professional.css?v=4">
+  <link rel="stylesheet" href="css/branding.css?v=4">
   <link rel="icon" type="image/png" href="assets/branding/nanogramics-icon.png">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="theme-color" content="#13161f">
-  <script src="js/theme.js?v=3"></script>
-<link rel="stylesheet" href="css/riders.css?v=3">
+  <script src="js/theme.js?v=4"></script>
+<link rel="stylesheet" href="css/riders.css?v=4">
 </head>
 <body>
 
@@ -225,7 +225,7 @@
     <!-- SIDEBAR -->
     <aside class="sidebar">
       <div class="sidebar-logo">
-        <h1 class="app-brand" aria-label="Nanogramics POS"><span class="brand-logo" role="img" aria-label="Nanogramics"><img src="assets/branding/nanogramics-mask.png" alt="" width="1600" height="684"></span><span class="brand-name">Nanogramics POS</span></h1>
+        <h1 class="app-brand" aria-label="Nanogramics POS"><span class="brand-logo" role="img" aria-label="Nanogramics"><img src="assets/branding/nanogramics-mask.png" alt="" width="1600" height="684"></span></h1>
         <p>RETAIL WORKSPACE</p>
       </div>
       <div class="nav-section-label">WORKSPACE</div>
@@ -514,8 +514,8 @@
               </select>
             </div>
             <div class="online-filter-tabs">
-              <button class="filter-tab active" data-filter="date"> By Date</button>
-              <button class="filter-tab" data-filter="all"> All Orders</button>
+              <button class="filter-tab" data-filter="date"> By Date</button>
+              <button class="filter-tab active" data-filter="all"> All Orders</button>
               <button class="filter-tab" data-filter="cod"> COD</button>
               <button class="filter-tab" data-filter="paid"> Paid</button>
               <button class="filter-tab" data-filter="pending"> Pending</button>
@@ -525,7 +525,7 @@
             </div>
           </div>
 
-          <div id="online-stats" class="report-stats" style="margin-bottom:15px;"></div>
+          <div id="online-stats" class="online-order-count" aria-live="polite"></div>
           <div id="online-orders-list" class="online-orders-list"></div>
         </div>
 
@@ -1071,6 +1071,11 @@
           <option value="paid">Paid</option>
         </select>
       </div>
+      <div class="form-group" id="online-proof-group" hidden>
+        <label for="online-payment-proof">Payment slip / screenshot *</label>
+        <input id="online-payment-proof" type="file" accept="image/png,image/jpeg,image/webp">
+        <small id="online-proof-status">PNG, JPG or WebP, up to 2 MB.</small>
+      </div>
       <div class="form-group">
         <label>Weight (kg)</label>
         <input type="number" id="online-weight" placeholder="e.g. 1.5" min="0" step="0.1">
@@ -1093,24 +1098,24 @@
 <!-- ══════════════════════════════════════════════════════════════ -->
 <!-- SCRIPTS — ORDER IS CRITICAL                                   -->
 <!-- ══════════════════════════════════════════════════════════════ -->
-<script src="js/utils.js?v=3"></script>
-<script src="js/thermalReceipt.js?v=3"></script>
-<script src="js/barcode.js?v=3"></script>
-<script src="js/api.js?v=3"></script>
-<script src="js/auth.js?v=3"></script>
-<script src="js/inventory.js?v=3"></script>
-<script src="js/shop.js?v=3"></script>
-<script src="js/riders.js?v=3"></script>
-<script src="js/sales.js?v=3"></script>
-<script src="js/wholesale.js?v=3"></script>
-<script src="js/reports.js?v=3"></script>
-<script src="js/online.js?v=3"></script>
-<script src="js/returns.js?v=3"></script>
-<script src="js/exchange.js?v=3"></script>
-<script src="js/audit.js?v=3"></script>
-<script src="js/settings.js?v=3"></script><!-- NEW: settings module with user management + permissions -->
-<script src="js/ui.js?v=3"></script>
-<script src="js/app.js?v=3"></script>
+<script src="js/utils.js?v=4"></script>
+<script src="js/thermalReceipt.js?v=4"></script>
+<script src="js/barcode.js?v=4"></script>
+<script src="js/api.js?v=4"></script>
+<script src="js/auth.js?v=4"></script>
+<script src="js/inventory.js?v=4"></script>
+<script src="js/shop.js?v=4"></script>
+<script src="js/riders.js?v=4"></script>
+<script src="js/sales.js?v=4"></script>
+<script src="js/wholesale.js?v=4"></script>
+<script src="js/reports.js?v=4"></script>
+<script src="js/online.js?v=4"></script>
+<script src="js/returns.js?v=4"></script>
+<script src="js/exchange.js?v=4"></script>
+<script src="js/audit.js?v=4"></script>
+<script src="js/settings.js?v=4"></script><!-- NEW: settings module with user management + permissions -->
+<script src="js/ui.js?v=4"></script>
+<script src="js/app.js?v=4"></script>
 
 </body>
 </html>

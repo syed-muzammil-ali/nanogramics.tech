@@ -1,5 +1,5 @@
-const CACHE_NAME = 'nanogramics-pos-v3';
-const ASSET_VERSION = '3';
+const CACHE_NAME = 'nanogramics-pos-v4';
+const ASSET_VERSION = '4';
 const APP_SHELL = [
   '/pos/',
   '/pos/index.html',

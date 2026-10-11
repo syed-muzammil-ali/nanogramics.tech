@@ -94,6 +94,7 @@ CREATE TABLE IF NOT EXISTS pos_online_orders (
   inventory_applied BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE pos_online_orders ADD COLUMN IF NOT EXISTS payment_proof_json TEXT;
 CREATE TABLE IF NOT EXISTS pos_settings (key TEXT PRIMARY KEY, value TEXT);
 CREATE TABLE IF NOT EXISTS pos_user_performance_log (
   id BIGSERIAL PRIMARY KEY,
@@ -371,6 +372,7 @@ async function db() {
 
 const num = value => Number(value || 0);
 const dateOnly = value => String(value || '').slice(0, 10);
+const publicOrder = row => ({...row, payment_proof_json: row.payment_proof_json ? JSON.stringify({name:JSON.parse(row.payment_proof_json).name,mime:JSON.parse(row.payment_proof_json).mime}) : null});
 const parseItems = row => ({...row, items: safeJson(row.items_json, []), customer: {name: row.customer_name, phone: row.customer_phone, address: row.customer_address}});
 const safeJson = (value, fallback) => {
   try { return JSON.parse(value || JSON.stringify(fallback)); } catch { return fallback; }
@@ -836,11 +838,11 @@ async function handler(channel, args, user, providedClient) {
     case 'db:onlineOrder:create':
       return createOnlineOrder(client, args[0], user);
     case 'db:onlineOrder:getAll':
-      return (await client.query('SELECT * FROM pos_online_orders ORDER BY created_at DESC')).rows.map(parseItems);
+      return (await client.query('SELECT * FROM pos_online_orders ORDER BY created_at DESC')).rows.map(row=>parseItems(publicOrder(row)));
     case 'db:onlineOrder:getByDate':
-      return (await client.query('SELECT * FROM pos_online_orders WHERE created_at::date=$1 ORDER BY created_at DESC', [dateOnly(args[0])])).rows.map(parseItems);
+      return (await client.query('SELECT * FROM pos_online_orders WHERE created_at::date=$1 ORDER BY created_at DESC', [dateOnly(args[0])])).rows.map(row=>parseItems(publicOrder(row)));
     case 'db:onlineOrder:getByDateRange':
-      return (await client.query('SELECT * FROM pos_online_orders WHERE created_at::date BETWEEN $1 AND $2 ORDER BY created_at DESC', [dateOnly(args[0]), dateOnly(args[1])])).rows.map(parseItems);
+      return (await client.query('SELECT * FROM pos_online_orders WHERE created_at::date BETWEEN $1 AND $2 ORDER BY created_at DESC', [dateOnly(args[0]), dateOnly(args[1])])).rows.map(row=>parseItems(publicOrder(row)));
     case 'db:onlineOrder:updateStatus':
       return updateOnlineOrderStatus(client, args[0], args[1]);
     case 'db:onlineOrder:bulkUpdateStatus': {
@@ -906,6 +908,9 @@ async function handler(channel, args, user, providedClient) {
       return shopDetails(client, args[0]);
     case 'shop:issue':
       return shopIssue(client, args[0], user);
+    case 'riders:orders':
+      requireRiderPermission(user, 'view');
+      return availableRiderOrders(client, args[0] || {});
     case 'riders:list':
       requireRiderPermission(user, 'view');
       return riderList(client);
@@ -1015,6 +1020,10 @@ function normalizeRiderParcels(rawParcels) {
       : cents(raw?.delivery, 'Delivery charges');
     return {
       id: clean(raw?.id, 80) || crypto.randomUUID(),
+      online_order_id: raw.online_order_id || null,
+      payment_type: raw.payment_type || null,
+      order_total_cents: raw.order_total_cents ?? null,
+      returned: Boolean(raw.returned),
       number,
       name,
       phone: clean(raw?.phone, 50),
@@ -1023,7 +1032,7 @@ function normalizeRiderParcels(rawParcels) {
       notes: clean(raw?.notes, 500),
       products,
       returns,
-      total_cents: deliveryCents + products.reduce((sum, item) => sum + item.quantity * item.price_cents, 0)
+      total_cents: raw.online_order_id && raw.order_total_cents != null ? nonNegativeInteger(raw.order_total_cents, 'Order total') : deliveryCents + products.reduce((sum, item) => sum + item.quantity * item.price_cents, 0)
     };
   });
 }
@@ -1031,6 +1040,7 @@ function normalizeRiderParcels(rawParcels) {
 function riderSkuMap(parcels, property = 'products') {
   const quantities = new Map();
   for (const parcel of parcels || []) {
+    if (parcel.online_order_id) continue; // Online order already owns its stock deduction.
     for (const item of parcel[property] || []) {
       if (!item.sku) continue;
       quantities.set(item.sku, (quantities.get(item.sku) || 0) + nonNegativeInteger(item.quantity, 'Inventory quantity'));
@@ -1083,7 +1093,8 @@ export function buildRiderPickup(row, paymentRows = [], returnRows = []) {
   const accepted = flatReturns.reduce((sum, item) => sum + item.accepted, 0);
   const pending = flatReturns.reduce((sum, item) => sum + item.pending, 0);
   const returnValueCents = flatReturns.reduce((sum, item) => sum + item.accepted * item.price_cents, 0);
-  const netCents = Math.max(0, totalCents - (row.settlement === 'deduct' ? returnValueCents : 0));
+  const collectibleCents = parcels.reduce((sum,p) => sum + (p.online_order_id ? (p.returned || p.payment_type === 'paid' ? 0 : Number(p.order_total_cents)) : Number(p.total_cents || 0)), 0);
+  const netCents = Math.max(0, collectibleCents - (row.settlement === 'deduct' ? returnValueCents : 0));
   const outstandingCents = netCents - receivedCents;
   const hasDispute = flatReturns.some(item => item.damaged > 0 || item.missing > 0);
   const returnStatus = expected === 0 ? 'No Return Expected'
@@ -1180,7 +1191,7 @@ async function saveRiderPickup(client, input, user) {
     if (!Number.isFinite(pickupAt.getTime())) throw httpError('A valid pickup date and time is required.');
     const settlement = input.settlement === 'deduct' ? 'deduct' : 'informational';
     if (settlement === 'deduct' && user.role !== 'admin') throw Object.assign(new Error('Admin access is required to use return-value deduction.'), {status: 403});
-    const parcels = normalizeRiderParcels(input.parcels || []);
+    const parcels = normalizeRiderParcels(await resolveOnlineParcels(client, input.parcels || [], input.id));
     if (input.finish && !parcels.length) throw httpError('Add at least one parcel before finishing the pickup.');
 
     const existing = input.id
@@ -1218,6 +1229,7 @@ async function saveRiderPickup(client, input, user) {
         [id, number, riderId, riderName, riderPhone, clean(input.company, 160), pickupAt.toISOString(), settlement, clean(input.notes, 1000), nextStatus, JSON.stringify(parcels), nextStatus === 'Active', user.id, user.username]
       );
     }
+    if (nextStatus === 'Active') for (const parcel of parcels) if (parcel.online_order_id && !parcel.returned) await client.query("UPDATE pos_online_orders SET order_status='shipping' WHERE id=$1 AND order_status='pending'", [parcel.online_order_id]);
     await riderHistoryEntry(client, id, existing ? (nextStatus === 'Active' ? 'Pickup updated' : 'Draft updated') : (nextStatus === 'Active' ? 'Pickup created and finished' : 'Draft created'), user, {parcels: parcels.length});
     return riderDetail(client, id);
   });
@@ -1468,6 +1480,8 @@ async function deleteSale(client, saleId, user) {
 }
 
 async function createOnlineOrder(client, order, user) {
+  const proof = validatePaymentProof(order.paymentProof);
+  if (order.paymentStatus === 'paid' && !proof) throw httpError('Upload a payment slip for a paid order.');
   const customer = order.customer || {};
   const id = order.id || `ORD-${Date.now()}`;
   const orderStatus = order.orderStatus || 'pending';
@@ -1484,9 +1498,9 @@ async function createOnlineOrder(client, order, user) {
     const discount = Math.max(0, num(order.discount));
     const total = Math.max(0, subtotal + delivery - discount);
     await client.query(
-      `INSERT INTO pos_online_orders (id,customer_name,customer_phone,customer_address,city,items_json,subtotal,delivery,discount,total,payment_status,order_status,notes,weight,qty_of_goods,goods_description,inventory_applied,created_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,true,$17)`,
-      [id, customer.name || '', customer.phone || '', customer.address || '', order.city || customer.city || '', JSON.stringify(items), subtotal, delivery, discount, total, order.paymentStatus || 'cod', orderStatus, order.notes || '', num(order.weight), items.reduce((s, i) => s + i.qty, 0), items.map(i => `${i.qty} x ${i.name}`).join(', '), order.created_at || new Date().toISOString()]
+      `INSERT INTO pos_online_orders (id,customer_name,customer_phone,customer_address,city,items_json,subtotal,delivery,discount,total,payment_status,order_status,notes,weight,qty_of_goods,goods_description,inventory_applied,created_at,payment_proof_json)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,true,$17,$18)`,
+      [id, customer.name || '', customer.phone || '', customer.address || '', order.city || customer.city || '', JSON.stringify(items), subtotal, delivery, discount, total, order.paymentStatus || 'cod', orderStatus, order.notes || '', num(order.weight), items.reduce((s, i) => s + i.qty, 0), items.map(i => `${i.qty} x ${i.name}`).join(', '), order.created_at || new Date().toISOString(), proof ? JSON.stringify(proof) : null]
     );
     await client.query('INSERT INTO pos_user_performance_log (user_id,username,order_id,pieces,amount) VALUES ($1,$2,$3,$4,$5)', [user.id, user.username, id, items.reduce((s, i) => s + i.qty, 0), total]);
     await audit(client, {action: 'Online Order Created', invoiceNumber: id, customerName: customer.name || '', details: `Rs ${total}; stock deducted atomically`}, user);
@@ -1498,9 +1512,14 @@ async function updateOnlineOrder(client, order) {
   return withTx(client, async () => {
     const existing = (await client.query('SELECT * FROM pos_online_orders WHERE id=$1 FOR UPDATE', [order.id])).rows[0];
     if (!existing) throw httpError('Online order not found.', 404);
+    const proof = validatePaymentProof(order.paymentProof?.base64 ? order.paymentProof : safeJson(existing.payment_proof_json, null));
+    if (order.paymentStatus === 'paid' && !proof) throw httpError('Upload a payment slip for a paid order.');
     const normalized = normalizeLineItems(order.items);
     const nextStatus = order.orderStatus || existing.order_status || 'pending';
     if (!['pending', 'shipping', 'delivered', 'return'].includes(nextStatus)) throw httpError('Invalid online order status.');
+    if (nextStatus !== existing.order_status) throw httpError('Use the order status control to change shipping or return status.');
+    const adjustments = await client.query('SELECT id FROM pos_returns WHERE invoice_id=$1 UNION ALL SELECT id FROM pos_exchanges WHERE original_invoice_id=$1', [order.id]);
+    if (adjustments.rows.length || existing.order_status === 'return') throw httpError('Orders with returns or exchanges cannot be edited.');
     const nextApplied = nextStatus !== 'return';
     const previousItems = safeJson(existing.items_json, []);
     await applyInventoryDeltas(client, stockDeltas(normalized, previousItems, existing.inventory_applied, nextApplied));
@@ -1512,8 +1531,8 @@ async function updateOnlineOrder(client, order) {
     const discount = Math.max(0, num(order.discount));
     const total = Math.max(0, subtotal + delivery - discount);
     await client.query(
-      `UPDATE pos_online_orders SET customer_name=$1,customer_phone=$2,customer_address=$3,city=$4,items_json=$5,subtotal=$6,delivery=$7,discount=$8,total=$9,payment_status=$10,order_status=$11,notes=$12,weight=$13,qty_of_goods=$14,goods_description=$15,inventory_applied=$16 WHERE id=$17`,
-      [customer.name || '', customer.phone || '', customer.address || '', order.city || customer.city || '', JSON.stringify(items), subtotal, delivery, discount, total, order.paymentStatus || 'cod', nextStatus, order.notes || '', num(order.weight), items.reduce((s, i) => s + i.qty, 0), items.map(i => `${i.qty} x ${i.name}`).join(', '), nextApplied, order.id]
+      `UPDATE pos_online_orders SET customer_name=$1,customer_phone=$2,customer_address=$3,city=$4,items_json=$5,subtotal=$6,delivery=$7,discount=$8,total=$9,payment_status=$10,order_status=$11,notes=$12,weight=$13,qty_of_goods=$14,goods_description=$15,inventory_applied=$16,payment_proof_json=$18 WHERE id=$17`,
+      [customer.name || '', customer.phone || '', customer.address || '', order.city || customer.city || '', JSON.stringify(items), subtotal, delivery, discount, total, order.paymentStatus || 'cod', nextStatus, order.notes || '', num(order.weight), items.reduce((s, i) => s + i.qty, 0), items.map(i => `${i.qty} x ${i.name}`).join(', '), nextApplied, order.id, proof ? JSON.stringify(proof) : null]
     );
     return {success: true, id: order.id, total};
   });
@@ -1524,10 +1543,18 @@ async function updateOnlineOrderStatus(client, id, status, manageTransaction = t
   const work = async () => {
     const order = (await client.query('SELECT * FROM pos_online_orders WHERE id=$1 FOR UPDATE', [id])).rows[0];
     if (!order) return {success: true, skipped: true};
+    if (order.order_status === 'return' && status !== 'return') throw httpError('Returned orders cannot be reopened. Create a new order.');
+    if (order.order_status === status) return {success:true};
+    const adjustment = status === 'return' ? (await invoiceForAdjustment(client, {...parseItems(order),invoiceType:'online'}, order.id)).data : null;
     const shouldApply = status !== 'return';
     if (Boolean(order.inventory_applied) !== shouldApply) {
-      const items = safeJson(order.items_json, []);
+      const items = adjustment ? adjustment.items.map(i=>({...i,qty:i.available})).filter(i=>i.qty>0) : safeJson(order.items_json, []);
       await applyInventoryDeltas(client, stockDeltas(items, items, order.inventory_applied, shouldApply));
+    }
+    if (adjustment) {
+      const items = adjustment.items.filter(i=>i.available>0).map(i=>({...i,qty:i.available}));
+      if (items.length) await client.query("INSERT INTO pos_returns(invoice_id,invoice_type,return_type,return_reason,return_qty,items_json,original_items,total_amount,refund_amount) VALUES($1,'online','full','Order returned',$2,$3,$4,$5,$6)", [id,items.reduce((s,i)=>s+i.qty,0),JSON.stringify(items),order.items_json,order.total,adjustment.remainingAmount]);
+      await client.query("UPDATE pos_rider_pickups SET parcels_json=(SELECT jsonb_agg(CASE WHEN p->>'online_order_id'=$1 THEN p || '{\"returned\":true}'::jsonb ELSE p END) FROM jsonb_array_elements(parcels_json) p) WHERE parcels_json @> $2::jsonb", [id,JSON.stringify([{online_order_id:id}])]);
     }
     await client.query('UPDATE pos_online_orders SET order_status=$1,inventory_applied=$2 WHERE id=$3', [status, shouldApply, id]);
     return {success: true};
@@ -1593,16 +1620,19 @@ async function fullReport(client, start, end) {
   const online = (await client.query('SELECT * FROM pos_online_orders WHERE created_at::date BETWEEN $1 AND $2 ORDER BY created_at DESC', [dateOnly(start), dateOnly(end)])).rows.map(parseItems);
   const simpleReturns = (await client.query('SELECT * FROM pos_online_returns WHERE created_at::date BETWEEN $1 AND $2', [dateOnly(start), dateOnly(end)])).rows;
   const delivered = online.filter(o => o.order_status === 'delivered');
-  const returnPieces = simpleReturns.reduce((s, r) => s + num(r.return_pieces), 0);
-  const onlineRevenue = delivered.reduce((s, o) => s + num(o.total), 0);
-  const returnAmount = simpleReturns.reduce((s, r) => s + num(r.return_amount), 0);
+  const returnRecords = (await client.query("SELECT * FROM pos_returns WHERE invoice_type='online' AND created_at::date BETWEEN $1 AND $2", [dateOnly(start),dateOnly(end)])).rows;
+  const returnedIds = (await client.query("SELECT DISTINCT invoice_id FROM pos_returns WHERE invoice_type='online'")).rows.map(r=>r.invoice_id);
+  const legacyReturns = online.filter(o=>o.order_status==='return'&&!returnedIds.includes(o.id));
+  const grossOrders = online.filter(o=>['delivered','return'].includes(o.order_status));
+  const {returnPieces, returnAmount} = onlineReturnSummary(simpleReturns,returnRecords,legacyReturns);
+  const onlineRevenue = grossOrders.reduce((s,o)=>s+num(o.total),0);
   return {
     adjustments: {summary: {netAdjustment: -returnAmount}},
     period: {startDate: start, endDate: end},
     offline: {sales: offlineSales, saleItems: saleItems.filter(item => offlineSales.some(sale => sale.id === item.sale_id)), summary: summarizeSales(offlineSales), productBreakdown: basic.itemBreakdown},
     wholesale: {sales: wholesaleSales, saleItems: saleItems.filter(item => wholesaleSales.some(sale => sale.id === item.sale_id)), summary: summarizeSales(wholesaleSales), productBreakdown: basic.itemBreakdown.filter(product => saleItems.some(item => wholesaleSales.some(sale => sale.id === item.sale_id) && item.product_code === product.code))},
     shopStock: {transfers, items: transferItems, summary: {totalTransfers: transfers.length, totalShops: new Set(transfers.map(transfer => transfer.destination_location_id)).size, totalProducts: new Set(transferItems.map(item => item.product_code)).size, totalQuantity: transferItems.reduce((sum, item) => sum + Number(item.quantity), 0)}, productBreakdown: shopBreakdown},
-    online: {simpleReturns, orders: online, summary: {totalOrders: online.length, totalRevenue: onlineRevenue, totalDiscount: delivered.reduce((s, o) => s + num(o.discount), 0), netOnlineRevenue: onlineRevenue - returnAmount, returnedAmount: returnAmount, paid: online.filter(o => o.payment_status === 'paid').length, cod: online.filter(o => o.payment_status !== 'paid').length, returned: online.filter(o => o.order_status === 'return').length, shipping: online.filter(o => o.order_status === 'shipping').length, delivered: delivered.length, grandTotalPieces: delivered.reduce((s, o) => s + o.items.reduce((t, i) => t + num(i.qty), 0), 0), returnPieces, totalPieces: Math.max(0, delivered.reduce((s, o) => s + o.items.reduce((t, i) => t + num(i.qty), 0), 0) - returnPieces)}, cityBreakdown: []},
+    online: {simpleReturns, returnRecords, orders: online, summary: {totalOrders: online.length, totalRevenue: onlineRevenue, totalDiscount: delivered.reduce((s, o) => s + num(o.discount), 0), netOnlineRevenue: onlineRevenue - returnAmount, returnedAmount: returnAmount, paid: online.filter(o => o.payment_status === 'paid').length, cod: online.filter(o => o.payment_status !== 'paid').length, returned: online.filter(o => o.order_status === 'return').length, shipping: online.filter(o => o.order_status === 'shipping').length, delivered: delivered.length, grandTotalPieces: grossOrders.reduce((s, o) => s + o.items.reduce((t, i) => t + num(i.qty), 0), 0), returnPieces, totalPieces: Math.max(0, grossOrders.reduce((s, o) => s + o.items.reduce((t, i) => t + num(i.qty), 0), 0) - returnPieces)}, cityBreakdown: []},
     combined: {grossRevenue: basic.summary.totalRevenue + onlineRevenue - returnAmount, netRevenue: basic.summary.totalRevenue + onlineRevenue - returnAmount, totalRevenue: basic.summary.totalRevenue + onlineRevenue - returnAmount, totalDiscount: basic.summary.totalDiscount, totalTransactions: basic.sales.length + online.length}
   };
 }
@@ -1629,20 +1659,22 @@ async function userPerformance(client, start, end) {
   return {users: Object.values(map).map(u => ({...u, netSales: u.deliveredSales - u.returnedAmount})), period: {startDate: start, endDate: end}};
 }
 
-async function lookupInvoice(client, id) {
-  const sale = (await client.query('SELECT * FROM pos_sales WHERE id=$1', [id])).rows[0];
+export async function lookupInvoice(client, id) {
+  id = String(id || '').trim().replace(/^#/, '').replace(/^\*|\*$/g, '').trim();
+  const sale = (await client.query('SELECT * FROM pos_sales WHERE LOWER(id)=LOWER($1)', [id])).rows[0];
   if (sale) {
+    id = sale.id;
     const items = (await client.query('SELECT product_code AS code,product_name AS name,brand,type,qty,price,subtotal FROM pos_sale_items WHERE sale_id=$1 ORDER BY id', [id])).rows;
     return invoiceForAdjustment(client, {...sale, invoiceType: 'offline', items}, id);
   }
-  const order = (await client.query('SELECT * FROM pos_online_orders WHERE id=$1', [id])).rows[0];
-  if (order) return invoiceForAdjustment(client, {...parseItems(order), invoiceType: 'online'}, id);
+  const order = (await client.query('SELECT * FROM pos_online_orders WHERE LOWER(id)=LOWER($1)', [id])).rows[0];
+  if (order) return invoiceForAdjustment(client, {...parseItems(order), invoiceType: 'online'}, order.id);
   return {success: false, message: 'Invoice not found'};
 }
 
 async function invoiceForAdjustment(client, invoice, id) {
-  const previousReturns = (await client.query('SELECT items_json FROM pos_returns WHERE invoice_id=$1', [id])).rows.flatMap(row => jsonColumn(row.items_json, []));
-  const previousExchanges = (await client.query('SELECT original_items FROM pos_exchanges WHERE original_invoice_id=$1', [id])).rows.flatMap(row => jsonColumn(row.original_items, []));
+  const previousReturns = (await client.query('SELECT items_json FROM pos_returns WHERE invoice_id=$1 AND invoice_type=$2', [id,invoice.invoiceType])).rows.flatMap(row => jsonColumn(row.items_json, []));
+  const previousExchanges = (await client.query('SELECT original_items FROM pos_exchanges WHERE original_invoice_id=$1 AND invoice_type=$2', [id,invoice.invoiceType])).rows.flatMap(row => jsonColumn(row.original_items, []));
   const used = new Map();
   for (const item of [...previousReturns, ...previousExchanges]) {
     const key = `${item.itemIndex ?? ''}|${item.code || ''}`;
@@ -1663,7 +1695,7 @@ async function invoiceForAdjustment(client, invoice, id) {
       qty: quantity,
       price: Number(item.price || 0),
       refundPrice: Math.round(Number(item.price || 0) * ratio * 100) / 100,
-      available: Math.max(0, quantity - (used.get(key) || 0))
+      available: invoice.order_status === 'return' ? 0 : Math.max(0, quantity - (used.get(key) || 0))
     };
   });
   return {
@@ -1747,6 +1779,10 @@ async function processAdjustment(client, data, user, type) {
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id`,
       [invoiceId, invoiceType, selected.length === invoice.items.length && selected.every(item => item.qty === item.available) ? 'full' : 'partial', receipt.reason, selected.reduce((sum, item) => sum + item.qty, 0), JSON.stringify(selected), JSON.stringify(invoice.items), invoice.customer_name || '', invoice.customer_phone || '', credit, refundAmount, user.id, user.username, JSON.stringify(receipt)]
     );
+    if (invoiceType === 'online' && selected.every((item,index) => item.qty === invoice.items[item.itemIndex].available) && selected.length === invoice.items.filter(item=>item.available>0).length) {
+      await client.query("UPDATE pos_online_orders SET order_status='return',inventory_applied=false WHERE id=$1", [invoiceId]);
+      await client.query("UPDATE pos_rider_pickups SET parcels_json=(SELECT jsonb_agg(CASE WHEN p->>'online_order_id'=$1 THEN p || '{\"returned\":true}'::jsonb ELSE p END) FROM jsonb_array_elements(parcels_json) p) WHERE parcels_json @> $2::jsonb", [invoiceId,JSON.stringify([{online_order_id:invoiceId}])]);
+    }
     await audit(client, {action: 'Return Processed', invoiceNumber, customerName: invoice.customer_name || '', details: `Original ${invoiceId}; stock restored atomically`}, user);
     return {...receipt, id: result.rows[0].id};
   });
@@ -1872,3 +1908,46 @@ export async function POST(req) {
 }
 
 export {normalizeLineItems, stockDeltas};
+
+export function validatePaymentProof(value) {
+  if(!value)return null;
+  const mime=String(value.mime||'').toLowerCase();
+  if(!['image/png','image/jpeg','image/webp'].includes(mime))throw new Error('Paid payment proof must be a PNG, JPG or WebP image.');
+  const encoded=String(value.base64||'').replace(/^data:[^;]+;base64,/, '');
+  const content=Buffer.from(encoded,'base64');
+  if(!content.length||content.length>2*1024*1024)throw new Error('Payment proof must be between 1 byte and 2 MB.');
+  const valid=mime==='image/png'&&content.subarray(0,8).equals(Buffer.from('89504e470d0a1a0a','hex'))
+    ||mime==='image/jpeg'&&content[0]===0xff&&content[1]===0xd8&&content[2]===0xff
+    ||mime==='image/webp'&&content.subarray(0,4).toString()==='RIFF'&&content.subarray(8,12).toString()==='WEBP';
+  if(!valid)throw new Error('Payment proof content does not match its image type.');
+  return {base64:content.toString('base64'),mime,name:String(value.name||'payment-proof').slice(0,180)};
+}
+
+export async function availableRiderOrders(client, input = {}) {
+  const search = '%' + String(input.search || '').trim() + '%';
+  const rows = (await client.query(
+    "SELECT o.* FROM pos_online_orders o WHERE o.order_status != 'return' AND (o.id ILIKE $1 OR o.customer_name ILIKE $1 OR o.city ILIKE $1) AND NOT EXISTS (SELECT 1 FROM pos_rider_pickups p, jsonb_array_elements(p.parcels_json) x WHERE p.deleted_at IS NULL AND p.id != $2 AND (x->>'online_order_id'=o.id OR LOWER(x->>'number')=LOWER(o.id))) ORDER BY o.created_at DESC",
+    [search,input.pickup_id || ''])).rows;
+  return rows.map(row=>({...parseItems(row),payment_proof_json:undefined,payment_proof_available:!!row.payment_proof_json}));
+}
+async function resolveOnlineParcels(client, parcels, pickupId) {
+  const result=[];
+  for (const parcel of [...parcels].sort((a,b)=>String(a.online_order_id||a.number).localeCompare(String(b.online_order_id||b.number)))) {
+    if (!parcel.online_order_id) {result.push(parcel);continue;}
+    const order=(await client.query('SELECT * FROM pos_online_orders WHERE id=$1 FOR UPDATE',[parcel.online_order_id])).rows[0];
+    if (!order) throw httpError('Online order not found.');
+    const linked=(await client.query("SELECT id FROM pos_rider_pickups WHERE deleted_at IS NULL AND id != $1 AND parcels_json @> $2::jsonb",[pickupId||'',JSON.stringify([{online_order_id:order.id}])])).rows[0];
+    if(linked)throw httpError('Order '+order.id+' is already in another pickup.');
+    if(order.order_status==='return'&&!parcel.returned)throw httpError('Returned orders cannot be added to a pickup.');
+    const items=safeJson(order.items_json,[]);
+    result.push({...parcel,number:order.id,name:order.customer_name,phone:order.customer_phone,address:[order.customer_address,order.city].filter(Boolean).join(', '),delivery_cents:Math.round(num(order.delivery)*100),payment_type:order.payment_status,order_total_cents:Math.round(num(order.total)*100),products:items.map(i=>({name:i.name,sku:i.code,quantity:Number(i.qty),price_cents:Math.round(num(i.price)*100)})),returns:[]});
+  }
+  return result;
+}
+
+export function onlineReturnSummary(simpleReturns, records, legacyReturns=[]) {
+  return {
+    returnPieces:simpleReturns.reduce((s,r)=>s+num(r.return_pieces),0)+records.reduce((s,r)=>s+num(r.return_qty),0)+legacyReturns.reduce((s,o)=>s+o.items.reduce((n,i)=>n+num(i.qty),0),0),
+    returnAmount:simpleReturns.reduce((s,r)=>s+num(r.return_amount),0)+records.reduce((s,r)=>s+num(r.refund_amount),0)+legacyReturns.reduce((s,o)=>s+num(o.total),0)
+  };
+}
